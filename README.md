@@ -3,4 +3,4 @@ Extract patches from xml annotations
 
 To install the dependencies (using pip):
 
-pip install requirements.txt
+  pip install requirements.txt
