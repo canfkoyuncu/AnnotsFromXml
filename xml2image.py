@@ -1,3 +1,4 @@
+import random
 import xml.etree.ElementTree as ET
 from PIL import Image, ImageDraw
 import numpy as np
@@ -5,16 +6,28 @@ import openslide
 import matplotlib.pyplot as plt
 import os
 
-def getAnnotFromXML(imFile, xmlfile, outPath):
-    padding = 5
-    showFlag = False
+from NucleiSegmentation.src.dl_nuclei_seg import forwardImage
 
+
+def getAnnotFromXML(imFile, xmlFile, outPath, patchSize, numPatchesFromEachComponent=20, scale=0, offsetFromCentroid=50):
+    batch_size = 4
     if not os.path.exists(outPath):
         os.makedirs(outPath)
 
+    if not os.path.exists(f"{outPath}//img//"):
+        os.makedirs(f"{outPath}//img//")
+
+    if not os.path.exists(f"{outPath}//label//"):
+        os.makedirs(f"{outPath}//label//")
+
+    batch_index = 0
+    batches = []
+    fnames = []
     osh = openslide.OpenSlide(imFile)
-    tree = ET.parse(xmlfile)
+    tree = ET.parse(xmlFile)
     root = tree.getroot()
+
+    basename = os.path.basename(imFile)
     for annotation in root.iter('Annotation'):
         for region in annotation.iter('Region'):
             points = []
@@ -33,36 +46,38 @@ def getAnnotFromXML(imFile, xmlfile, outPath):
                 if maxr == -1 or y > maxr:
                     maxr = y
 
-            minr -= padding
-            minc -= padding
-            maxr += padding
-            maxc += padding
-            width, height = int(maxc-minc), int(maxr-minr)
-            img = osh.read_region((int(minc), int(minr)), 0, (width, height)).convert('RGB')
+            points = np.mean(np.array(points), axis=0)
+            centerr = round(points[1])
+            centerc = round(points[0])
+            for ind in range(0, numPatchesFromEachComponent):
+                randr = random.randint(centerr - offsetFromCentroid, centerr + offsetFromCentroid)
+                randc = random.randint(centerc - offsetFromCentroid, centerc + offsetFromCentroid)
 
-            new_points = []
-            for p in points:
-                new_points.append((p[0]-minc, p[1]-minr))
+                minc = randc - patchSize // 2
+                minr = randr - patchSize // 2
 
-            mask = Image.new('1', (width, height), 0)
-            ImageDraw.Draw(mask).polygon(new_points, outline=1, fill=1)
+                img = osh.read_region((int(minc), int(minr)), scale, (patchSize, patchSize)).convert('RGB')
 
-            basename = os.path.basename(imFile)
-            mask.save(f"{outPath}//{basename}_x{minc}_y{minr}_mask.png")
-            img.save(f"{outPath}//{basename}_x{minc}_y{minr}_image.png")
+                '''if batch_index < batch_size:
+                    batches.append(img)
+                    fnames.append(f"{basename}_x{minc}_y{minr}")
+                    batch_index += 1
+                else:
+                    cells = forwardImage(batches)
+                    for i in range(0, batch_size):
+                        batches[i].save(f"{outPath}//img//{fnames[i]}.png")
+                        cells[i].save(f"{outPath}//label//{fnames[i]}.png")
+                    fnames = []
+                    batch_index = []
+                    batch_index = 0'''
 
-            if showFlag and len(new_points) > 4:
-                plt.imshow(mask, cmap='gray')
-                plt.show()
-
-                points = np.asarray(points)
-                plt.imshow(img)
-                plt.scatter(x=points[:, 0]-minc, y=points[:, 1]-minr, c='g', s=20)
-                plt.show()
+                cells = forwardImage(img)
+                img.save(f"{outPath}//img//{basename}_x{minc}_y{minr}.png")
+                cells[0].save(f"{outPath}//label//{basename}_x{minc}_y{minr}.png")
 
 
 if __name__ == '__main__':
     imFname = 'Z:\\Vanderbilt_Multinucleation_Jim\\1stRound\\1_001.svs'
     annotFname = 'Z:\\Vanderbilt_Multinucleation_Jim\\1stRound\\1_001.xml'
     outPath = '.\\annot\\'
-    getAnnotFromXML(imFname, annotFname, outPath)
+    getAnnotFromXML(imFname, annotFname, outPath, patchSize=256, numPatchesFromEachComponent=20, scale=0, offsetFromCentroid=75)
