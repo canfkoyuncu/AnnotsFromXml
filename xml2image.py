@@ -6,8 +6,6 @@ import openslide
 import matplotlib.pyplot as plt
 import os
 
-from NucleiSegmentation.src.dl_nuclei_seg import forwardImage
-
 
 def getAnnotFromXML(imFile, xmlFile, outPath, patchSize, numPatchesFromEachComponent=20, scale=0, offsetFromCentroid=50):
     batch_size = 4
@@ -71,9 +69,9 @@ def getAnnotFromXML(imFile, xmlFile, outPath, patchSize, numPatchesFromEachCompo
                     batch_index = []
                     batch_index = 0'''
 
-                cells = forwardImage(img)
+                #cells = forwardImage(img)
                 img.save(f"{outPath}//img//{basename}_x{minc}_y{minr}.png")
-                cells[0].save(f"{outPath}//label//{basename}_x{minc}_y{minr}.png")
+                #cells[0].save(f"{outPath}//label//{basename}_x{minc}_y{minr}.png")
 
 
 if __name__ == '__main__':
